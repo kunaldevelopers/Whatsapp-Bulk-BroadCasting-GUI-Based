@@ -3,7 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>WhatsApp Bot - EnegiX Global</title>    <link
+    <title>WhatsApp Bot - EnegiX Global</title>
+    <link
       rel="stylesheet"
       href="../node_modules/bootstrap/dist/css/bootstrap.min.css"
     />
@@ -349,6 +350,22 @@
                         <label for="imageFile" class="form-label"
                           >Image File</label
                         >
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                          <div class="form-check form-switch">
+                            <input
+                              class="form-check-input"
+                              type="checkbox"
+                              role="switch"
+                              id="sendImageToggle"
+                              checked
+                            />
+                            <label
+                              class="form-check-label"
+                              for="sendImageToggle"
+                              >Send Image</label
+                            >
+                          </div>
+                        </div>
                         <div class="input-group">
                           <input
                             type="text"
@@ -370,6 +387,20 @@
                       </div>
                       <div class="mb-3">
                         <label for="pdfFile" class="form-label">PDF File</label>
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                          <div class="form-check form-switch">
+                            <input
+                              class="form-check-input"
+                              type="checkbox"
+                              role="switch"
+                              id="sendPdfToggle"
+                              checked
+                            />
+                            <label class="form-check-label" for="sendPdfToggle"
+                              >Send PDF</label
+                            >
+                          </div>
+                        </div>
                         <div class="input-group">
                           <input
                             type="text"
@@ -496,7 +527,8 @@
                               <th>Status</th>
                               <th>Actions</th>
                             </tr>
-                          </thead>                          <tbody id="contactsTableBody">
+                          </thead>
+                          <tbody id="contactsTableBody">
                             <tr>
                               <td colspan="4" class="text-center">
                                 No contacts loaded

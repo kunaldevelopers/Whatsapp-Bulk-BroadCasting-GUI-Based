@@ -83,6 +83,8 @@ const refreshTemplatesBtn = document.getElementById("refreshTemplatesBtn");
 const exportLogsBtn = document.getElementById("exportLogsBtn");
 const resetSessionBtn = document.getElementById("resetSessionBtn");
 const appVersion = document.getElementById("appVersion");
+const sendImageToggle = document.getElementById("sendImageToggle");
+const sendPdfToggle = document.getElementById("sendPdfToggle");
 
 // Variables
 let client = null;
@@ -94,6 +96,8 @@ let isSending = false;
 let isPaused = false;
 let imageMedia = null;
 let pdfMedia = null;
+let sendImage = true;
+let sendPdf = true;
 
 // Initialize the app
 async function initializeApp() {
@@ -504,7 +508,8 @@ function loadContactsFromFile() {
 }
 
 // Update contacts table
-function updateContactsTable() {  if (!contacts || contacts.length === 0) {
+function updateContactsTable() {
+  if (!contacts || contacts.length === 0) {
     contactsTableBody.innerHTML =
       '<tr><td colspan="4" class="text-center">No contacts loaded</td></tr>';
     contactCount.innerText = "0";
@@ -527,11 +532,11 @@ function updateContactsTable() {  if (!contacts || contacts.length === 0) {
     contactsTableBody.appendChild(row);
 
     // Add event listeners for edit and delete icons
-    const editIcon = row.querySelector('.edit-icon');
-    const deleteIcon = row.querySelector('.delete-icon');
-    
-    editIcon.addEventListener('click', () => editContact(index));
-    deleteIcon.addEventListener('click', () => deleteContact(index));
+    const editIcon = row.querySelector(".edit-icon");
+    const deleteIcon = row.querySelector(".delete-icon");
+
+    editIcon.addEventListener("click", () => editContact(index));
+    deleteIcon.addEventListener("click", () => deleteContact(index));
   });
   if (contacts.length > 20) {
     // Remove existing view more button if it exists
@@ -539,16 +544,23 @@ function updateContactsTable() {  if (!contacts || contacts.length === 0) {
     if (existingViewMore) {
       existingViewMore.remove();
     }
-    
+
     const viewMoreContainer = document.createElement("div");
-    viewMoreContainer.className = "text-center mt-2 view-more-container";    viewMoreContainer.innerHTML = `
+    viewMoreContainer.className = "text-center mt-2 view-more-container";
+    viewMoreContainer.innerHTML = `
       <button id="viewMoreContactsBtn" class="view-more-btn">
-        ... and ${contacts.length - 20} more contacts <i class="fas fa-angle-double-right"></i>
+        ... and ${
+          contacts.length - 20
+        } more contacts <i class="fas fa-angle-double-right"></i>
       </button>
     `;
-    contactsTableBody.parentElement.parentElement.appendChild(viewMoreContainer);
-    
-    document.getElementById("viewMoreContactsBtn").addEventListener('click', viewAllContacts);
+    contactsTableBody.parentElement.parentElement.appendChild(
+      viewMoreContainer
+    );
+
+    document
+      .getElementById("viewMoreContactsBtn")
+      .addEventListener("click", viewAllContacts);
   }
 }
 
@@ -600,8 +612,13 @@ async function startSendingMessages() {
     return;
   }
 
-  if (!imageFilePath.value || !pdfFilePath.value) {
-    addLog("Please select both image and PDF files.", "warning");
+  if (sendImage && !imageFilePath.value) {
+    addLog("Please select an image file or disable image sending.", "warning");
+    return;
+  }
+
+  if (sendPdf && !pdfFilePath.value) {
+    addLog("Please select a PDF file or disable PDF sending.", "warning");
     return;
   }
 
@@ -625,24 +642,27 @@ async function startSendingMessages() {
     return;
   }
 
-  // Verify files exist
-  const imageExists = await ipcRenderer.invoke(
-    "check-file-exists",
-    imageFilePath.value
-  );
-  const pdfExists = await ipcRenderer.invoke(
-    "check-file-exists",
-    pdfFilePath.value
-  );
-
-  if (!imageExists) {
-    addLog(`Image file not found: ${imageFilePath.value}`, "error");
-    return;
+  // Verify files exist if needed
+  if (sendImage) {
+    const imageExists = await ipcRenderer.invoke(
+      "check-file-exists",
+      imageFilePath.value
+    );
+    if (!imageExists) {
+      addLog(`Image file not found: ${imageFilePath.value}`, "error");
+      return;
+    }
   }
 
-  if (!pdfExists) {
-    addLog(`PDF file not found: ${pdfFilePath.value}`, "error");
-    return;
+  if (sendPdf) {
+    const pdfExists = await ipcRenderer.invoke(
+      "check-file-exists",
+      pdfFilePath.value
+    );
+    if (!pdfExists) {
+      addLog(`PDF file not found: ${pdfFilePath.value}`, "error");
+      return;
+    }
   }
 
   // Start fresh
@@ -662,8 +682,13 @@ async function startSendingMessages() {
   try {
     addLog("Loading media files...", "info");
 
-    imageMedia = MessageMedia.fromFilePath(imageFilePath.value);
-    pdfMedia = MessageMedia.fromFilePath(pdfFilePath.value);
+    if (sendImage) {
+      imageMedia = MessageMedia.fromFilePath(imageFilePath.value);
+    }
+
+    if (sendPdf) {
+      pdfMedia = MessageMedia.fromFilePath(pdfFilePath.value);
+    }
 
     addLog("Media files loaded successfully.", "success");
 
@@ -706,6 +731,7 @@ async function processNextContact() {
   sendStatus.innerText = `Processing contact ${currentContactIndex + 1} of ${
     contacts.length
   }`;
+
   // Update contact status in table if visible
   if (currentContactIndex < 20) {
     const row = contactsTableBody.rows[currentContactIndex];
@@ -730,8 +756,6 @@ async function processNextContact() {
     const isRegistered = await client.isRegisteredUser(chatId);
     if (!isRegistered) {
       addLog(`${formattedNumber} is NOT on WhatsApp. Skipping...`, "warning");
-
-      // Update contact status in table if visible
       if (currentContactIndex < 20) {
         const row = contactsTableBody.rows[currentContactIndex];
         if (row) {
@@ -739,31 +763,36 @@ async function processNextContact() {
             '<span class="badge bg-warning">Not on WhatsApp</span>';
         }
       }
-
-      // Move to next contact
       currentContactIndex++;
       processNextContact();
       return;
     }
 
-    // Send image with text caption
-    await client.sendMessage(chatId, imageMedia, {
-      caption: messageText.value,
-    });
-    addLog(`Image with text sent to ${formattedNumber}`, "success");
+    // Send content based on toggle states
+    if (sendImage) {
+      await client.sendMessage(chatId, imageMedia, {
+        caption: messageText.value,
+      });
+      addLog(`Image with text sent to ${formattedNumber}`, "success");
+    } else {
+      // Send text only if no image
+      await client.sendMessage(chatId, messageText.value);
+      addLog(`Text message sent to ${formattedNumber}`, "success");
+    }
 
-    // Delay before sending PDF
-    const delay1 = Math.floor(
-      Math.random() * (maxDelay.value * 1000 - minDelay.value * 1000) +
-        minDelay.value * 1000
-    );
-    addLog(`Waiting ${delay1 / 1000} seconds before sending PDF...`, "info");
+    if (sendPdf) {
+      // Delay before sending PDF
+      const delay1 = Math.floor(
+        Math.random() * (maxDelay.value * 1000 - minDelay.value * 1000) +
+          minDelay.value * 1000
+      );
+      addLog(`Waiting ${delay1 / 1000} seconds before sending PDF...`, "info");
+      await new Promise((resolve) => setTimeout(resolve, delay1));
 
-    await new Promise((resolve) => setTimeout(resolve, delay1));
-
-    // Send PDF
-    await client.sendMessage(chatId, pdfMedia, { caption: pdfCaption.value });
-    addLog(`PDF sent to ${formattedNumber}`, "success");
+      // Send PDF
+      await client.sendMessage(chatId, pdfMedia, { caption: pdfCaption.value });
+      addLog(`PDF sent to ${formattedNumber}`, "success");
+    }
 
     // Update contact status in table if visible
     if (currentContactIndex < 20) {
@@ -782,23 +811,16 @@ async function processNextContact() {
         minDelayPdf.value * 1000
     );
     addLog(`Waiting ${delay2 / 1000} seconds before next message...`, "info");
-
     setTimeout(processNextContact, delay2);
   } catch (error) {
     addLog(`Error sending to ${number}: ${error.message}`, "error");
-
-    // Update contact status in table if visible
     if (currentContactIndex < 20) {
       const row = contactsTableBody.rows[currentContactIndex];
       if (row) {
         row.cells[2].innerHTML = '<span class="badge bg-danger">Failed</span>';
       }
     }
-
-    // Move to next contact
     currentContactIndex++;
-
-    // Continue with next after a delay
     setTimeout(processNextContact, 3000);
   }
 }
@@ -1186,6 +1208,29 @@ document.addEventListener("DOMContentLoaded", () => {
   applyZoom(parseFloat(savedZoom));
 });
 
+// Toggle settings
+sendImageToggle.addEventListener("change", function () {
+  sendImage = this.checked;
+  // Enable sending if we have contacts and WhatsApp is connected
+  startSendingBtn.disabled = !(
+    contacts.length > 0 &&
+    isClientReady &&
+    ((sendImage && imageFilePath.value) || !sendImage) &&
+    ((sendPdf && pdfFilePath.value) || !sendPdf)
+  );
+});
+
+sendPdfToggle.addEventListener("change", function () {
+  sendPdf = this.checked;
+  // Enable sending if we have contacts and WhatsApp is connected
+  startSendingBtn.disabled = !(
+    contacts.length > 0 &&
+    isClientReady &&
+    ((sendImage && imageFilePath.value) || !sendImage) &&
+    ((sendPdf && pdfFilePath.value) || !sendPdf)
+  );
+});
+
 // Zoom event listeners from main process
 ipcRenderer.on("zoom-in", () => {
   const newZoom = Math.min(currentZoom + zoomStep, 3.0);
@@ -1247,15 +1292,15 @@ resetSessionBtn.addEventListener("click", resetWhatsAppSession);
 // Edit contact
 function editContact(index) {
   const contact = contacts[index];
-  
+
   // Create a modal dialog for editing the contact
-  const modal = document.createElement('div');
-  modal.className = 'modal fade';
-  modal.id = 'editContactModal';
-  modal.setAttribute('tabindex', '-1');
-  modal.setAttribute('aria-labelledby', 'editContactModalLabel');
-  modal.setAttribute('aria-hidden', 'true');
-  
+  const modal = document.createElement("div");
+  modal.className = "modal fade";
+  modal.id = "editContactModal";
+  modal.setAttribute("tabindex", "-1");
+  modal.setAttribute("aria-labelledby", "editContactModalLabel");
+  modal.setAttribute("aria-hidden", "true");
+
   modal.innerHTML = `
     <div class="modal-dialog">
       <div class="modal-content">
@@ -1276,31 +1321,31 @@ function editContact(index) {
       </div>
     </div>
   `;
-  
+
   document.body.appendChild(modal);
-  
+
   // Initialize the Bootstrap modal
   const modalInstance = new bootstrap.Modal(modal);
   modalInstance.show();
-  
+
   // Save changes when button is clicked
-  document.getElementById('saveContactBtn').addEventListener('click', () => {
-    const newNumber = document.getElementById('editContactNumber').value;
+  document.getElementById("saveContactBtn").addEventListener("click", () => {
+    const newNumber = document.getElementById("editContactNumber").value;
     contacts[index].Number = newNumber;
     modalInstance.hide();
-    
+
     // Remove the modal from DOM after hiding
-    modal.addEventListener('hidden.bs.modal', function () {
+    modal.addEventListener("hidden.bs.modal", function () {
       document.body.removeChild(modal);
     });
-    
+
     // Update the contacts table
     updateContactsTable();
     addLog(`Contact #${index + 1} updated to ${newNumber}`, "info");
   });
-  
+
   // Clean up the modal when closed
-  modal.addEventListener('hidden.bs.modal', function () {
+  modal.addEventListener("hidden.bs.modal", function () {
     if (document.body.contains(modal)) {
       document.body.removeChild(modal);
     }
@@ -1310,13 +1355,13 @@ function editContact(index) {
 // Delete contact
 function deleteContact(index) {
   // Create a confirmation modal
-  const modal = document.createElement('div');
-  modal.className = 'modal fade';
-  modal.id = 'deleteContactModal';
-  modal.setAttribute('tabindex', '-1');
-  modal.setAttribute('aria-labelledby', 'deleteContactModalLabel');
-  modal.setAttribute('aria-hidden', 'true');
-  
+  const modal = document.createElement("div");
+  modal.className = "modal fade";
+  modal.id = "deleteContactModal";
+  modal.setAttribute("tabindex", "-1");
+  modal.setAttribute("aria-labelledby", "deleteContactModalLabel");
+  modal.setAttribute("aria-hidden", "true");
+
   modal.innerHTML = `
     <div class="modal-dialog">
       <div class="modal-content">
@@ -1334,46 +1379,46 @@ function deleteContact(index) {
       </div>
     </div>
   `;
-  
+
   document.body.appendChild(modal);
-  
+
   // Initialize the Bootstrap modal
   const modalInstance = new bootstrap.Modal(modal);
   modalInstance.show();
-  
+
   // Delete contact when confirm button is clicked
-  document.getElementById('confirmDeleteBtn').addEventListener('click', () => {
+  document.getElementById("confirmDeleteBtn").addEventListener("click", () => {
     contacts.splice(index, 1);
     modalInstance.hide();
-    
+
     // Remove the modal from DOM after hiding
-    modal.addEventListener('hidden.bs.modal', function () {
+    modal.addEventListener("hidden.bs.modal", function () {
       document.body.removeChild(modal);
     });
-    
+
     // Update the contacts table and count
     updateContactsTable();
     addLog(`Contact #${index + 1} deleted`, "info");
   });
-  
+
   // Clean up the modal when closed
-  modal.addEventListener('hidden.bs.modal', function () {
+  modal.addEventListener("hidden.bs.modal", function () {
     if (document.body.contains(modal)) {
       document.body.removeChild(modal);
     }
   });
-}  // View all contacts
+} // View all contacts
 function viewAllContacts() {
   // Create a modal for viewing all contacts
-  const modal = document.createElement('div');
-  modal.className = 'modal fade';
-  modal.id = 'allContactsModal';
-  modal.setAttribute('tabindex', '-1');
-  modal.setAttribute('aria-labelledby', 'allContactsModalLabel');
-  modal.setAttribute('aria-hidden', 'true');
-  
+  const modal = document.createElement("div");
+  modal.className = "modal fade";
+  modal.id = "allContactsModal";
+  modal.setAttribute("tabindex", "-1");
+  modal.setAttribute("aria-labelledby", "allContactsModalLabel");
+  modal.setAttribute("aria-hidden", "true");
+
   // Generate table rows for all contacts
-  let tableRows = '';
+  let tableRows = "";
   contacts.forEach((contact, index) => {
     // Get the current status of the contact if it's in the visible list
     let statusBadge = '<span class="badge bg-secondary">Pending</span>';
@@ -1383,7 +1428,7 @@ function viewAllContacts() {
         statusBadge = rowInMainTable.cells[2].innerHTML;
       }
     }
-    
+
     tableRows += `
       <tr>
         <td>${index + 1}</td>
@@ -1396,7 +1441,7 @@ function viewAllContacts() {
       </tr>
     `;
   });
-  
+
   modal.innerHTML = `
     <div class="modal-dialog modal-lg">
       <div class="modal-content">
@@ -1427,35 +1472,35 @@ function viewAllContacts() {
       </div>
     </div>
   `;
-  
+
   document.body.appendChild(modal);
-  
+
   // Initialize the Bootstrap modal
   const modalInstance = new bootstrap.Modal(modal);
   modalInstance.show();
-  
+
   // Add event listeners to edit and delete icons
-  const editIcons = modal.querySelectorAll('.edit-icon');
-  const deleteIcons = modal.querySelectorAll('.delete-icon');
-  
-  editIcons.forEach(icon => {
-    icon.addEventListener('click', () => {
-      const index = parseInt(icon.getAttribute('data-modal-index'));
+  const editIcons = modal.querySelectorAll(".edit-icon");
+  const deleteIcons = modal.querySelectorAll(".delete-icon");
+
+  editIcons.forEach((icon) => {
+    icon.addEventListener("click", () => {
+      const index = parseInt(icon.getAttribute("data-modal-index"));
       modalInstance.hide();
       setTimeout(() => editContact(index), 500); // Delay to avoid modal conflicts
     });
   });
-  
-  deleteIcons.forEach(icon => {
-    icon.addEventListener('click', () => {
-      const index = parseInt(icon.getAttribute('data-modal-index'));
+
+  deleteIcons.forEach((icon) => {
+    icon.addEventListener("click", () => {
+      const index = parseInt(icon.getAttribute("data-modal-index"));
       modalInstance.hide();
       setTimeout(() => deleteContact(index), 500); // Delay to avoid modal conflicts
     });
   });
-  
+
   // Clean up the modal when closed
-  modal.addEventListener('hidden.bs.modal', function () {
+  modal.addEventListener("hidden.bs.modal", function () {
     if (document.body.contains(modal)) {
       document.body.removeChild(modal);
     }
