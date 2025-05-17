@@ -5,6 +5,47 @@ const { Client, MessageMedia, LocalAuth } = require("whatsapp-web.js");
 const fs = require("fs");
 const logger = require("./logger");
 
+// Global zoom functionality
+let currentZoom = 1.0;
+const zoomStep = 0.1;
+
+// Function to apply zoom to the entire app
+function applyZoom(zoomLevel) {
+  document.body.style.zoom = zoomLevel;
+  currentZoom = zoomLevel;
+
+  // Create or update zoom indicator
+  let zoomIndicator = document.getElementById("zoom-indicator");
+  if (!zoomIndicator) {
+    zoomIndicator = document.createElement("div");
+    zoomIndicator.id = "zoom-indicator";
+    zoomIndicator.style.position = "fixed";
+    zoomIndicator.style.bottom = "10px";
+    zoomIndicator.style.right = "10px";
+    zoomIndicator.style.backgroundColor = "rgba(0, 0, 0, 0.7)";
+    zoomIndicator.style.color = "white";
+    zoomIndicator.style.padding = "5px 10px";
+    zoomIndicator.style.borderRadius = "3px";
+    zoomIndicator.style.fontSize = "12px";
+    zoomIndicator.style.zIndex = "9999";
+    zoomIndicator.style.opacity = "0";
+    zoomIndicator.style.transition = "opacity 0.5s ease-in-out";
+    document.body.appendChild(zoomIndicator);
+  }
+
+  // Update zoom level and show indicator
+  const percentage = Math.round(zoomLevel * 100);
+  zoomIndicator.textContent = `Zoom: ${percentage}%`;
+  zoomIndicator.style.opacity = "1";
+
+  // Hide indicator after 2 seconds
+  setTimeout(() => {
+    zoomIndicator.style.opacity = "0";
+  }, 2000);
+
+  logger.debug(`Applied zoom level: ${zoomLevel} (${percentage}%)`);
+}
+
 // DOM Elements
 const connectBtn = document.getElementById("connectBtn");
 const disconnectBtn = document.getElementById("disconnectBtn");
@@ -410,10 +451,13 @@ function previewMessage() {
   }
 
   // Convert WhatsApp formatting to HTML
-  let formattedText = text
-    .replace(/\*/g, "<strong>*</strong>")
-    .replace(/_(.*?)_/g, "<em>_$1_</em>");
+  // Handle *bold* formatting
+  let formattedText = text.replace(/\*(.*?)\*/g, "<strong>$1</strong>");
 
+  // Handle _italic_ formatting
+  formattedText = formattedText.replace(/_(.*?)_/g, "<em>$1</em>");
+
+  // Set the formatted HTML
   messagePreview.innerHTML = formattedText;
 }
 
@@ -460,35 +504,51 @@ function loadContactsFromFile() {
 }
 
 // Update contacts table
-function updateContactsTable() {
-  if (!contacts || contacts.length === 0) {
+function updateContactsTable() {  if (!contacts || contacts.length === 0) {
     contactsTableBody.innerHTML =
-      '<tr><td colspan="3" class="text-center">No contacts loaded</td></tr>';
+      '<tr><td colspan="4" class="text-center">No contacts loaded</td></tr>';
     contactCount.innerText = "0";
     return;
   }
 
   contactCount.innerText = contacts.length;
   contactsTableBody.innerHTML = "";
-
   contacts.slice(0, 20).forEach((contact, index) => {
     const row = document.createElement("tr");
     row.innerHTML = `
             <td>${index + 1}</td>
             <td>${contact.Number}</td>
             <td><span class="badge bg-secondary">Pending</span></td>
+            <td>
+              <i class="fas fa-edit action-icon edit-icon" data-index="${index}" title="Edit Contact"></i>
+              <i class="fas fa-trash-alt action-icon delete-icon" data-index="${index}" title="Delete Contact"></i>
+            </td>
         `;
     contactsTableBody.appendChild(row);
-  });
 
+    // Add event listeners for edit and delete icons
+    const editIcon = row.querySelector('.edit-icon');
+    const deleteIcon = row.querySelector('.delete-icon');
+    
+    editIcon.addEventListener('click', () => editContact(index));
+    deleteIcon.addEventListener('click', () => deleteContact(index));
+  });
   if (contacts.length > 20) {
-    const row = document.createElement("tr");
-    row.innerHTML = `
-            <td colspan="3" class="text-center">... and ${
-              contacts.length - 20
-            } more contacts</td>
-        `;
-    contactsTableBody.appendChild(row);
+    // Remove existing view more button if it exists
+    const existingViewMore = document.querySelector(".view-more-container");
+    if (existingViewMore) {
+      existingViewMore.remove();
+    }
+    
+    const viewMoreContainer = document.createElement("div");
+    viewMoreContainer.className = "text-center mt-2 view-more-container";    viewMoreContainer.innerHTML = `
+      <button id="viewMoreContactsBtn" class="view-more-btn">
+        ... and ${contacts.length - 20} more contacts <i class="fas fa-angle-double-right"></i>
+      </button>
+    `;
+    contactsTableBody.parentElement.parentElement.appendChild(viewMoreContainer);
+    
+    document.getElementById("viewMoreContactsBtn").addEventListener('click', viewAllContacts);
   }
 }
 
@@ -646,7 +706,6 @@ async function processNextContact() {
   sendStatus.innerText = `Processing contact ${currentContactIndex + 1} of ${
     contacts.length
   }`;
-
   // Update contact status in table if visible
   if (currentContactIndex < 20) {
     const row = contactsTableBody.rows[currentContactIndex];
@@ -1121,11 +1180,57 @@ window.addEventListener("error", function (event) {
 document.addEventListener("DOMContentLoaded", () => {
   initializeApp();
   getAppVersion();
+
+  // Initialize zoom to stored value or default
+  const savedZoom = localStorage.getItem("appZoom") || 1.0;
+  applyZoom(parseFloat(savedZoom));
 });
+
+// Zoom event listeners from main process
+ipcRenderer.on("zoom-in", () => {
+  const newZoom = Math.min(currentZoom + zoomStep, 3.0);
+  applyZoom(newZoom);
+  localStorage.setItem("appZoom", newZoom);
+});
+
+ipcRenderer.on("zoom-out", () => {
+  const newZoom = Math.max(currentZoom - zoomStep, 0.5);
+  applyZoom(newZoom);
+  localStorage.setItem("appZoom", newZoom);
+});
+
+ipcRenderer.on("zoom-reset", () => {
+  applyZoom(1.0);
+  localStorage.setItem("appZoom", 1.0);
+});
+
+// Add keyboard shortcuts for zooming
+document.addEventListener("keydown", (event) => {
+  if (event.ctrlKey) {
+    if (event.key === "=" || event.key === "+") {
+      const newZoom = Math.min(currentZoom + zoomStep, 3.0);
+      applyZoom(newZoom);
+      localStorage.setItem("appZoom", newZoom);
+      event.preventDefault();
+    } else if (event.key === "-") {
+      const newZoom = Math.max(currentZoom - zoomStep, 0.5);
+      applyZoom(newZoom);
+      localStorage.setItem("appZoom", newZoom);
+      event.preventDefault();
+    } else if (event.key === "0") {
+      applyZoom(1.0);
+      localStorage.setItem("appZoom", 1.0);
+      event.preventDefault();
+    }
+  }
+});
+
 connectBtn.addEventListener("click", connectWhatsApp);
 disconnectBtn.addEventListener("click", disconnectWhatsApp);
 messageText.addEventListener("input", previewMessage);
 previewBtn.addEventListener("click", previewMessage);
+// Add input event listener for real-time preview updates
+messageText.addEventListener("input", previewMessage);
 selectImageBtn.addEventListener("click", selectImageFile);
 selectPdfBtn.addEventListener("click", selectPdfFile);
 selectContactsBtn.addEventListener("click", selectContactsFile);
@@ -1138,3 +1243,221 @@ saveTemplateBtn.addEventListener("click", saveTemplate);
 refreshTemplatesBtn.addEventListener("click", loadTemplates);
 exportLogsBtn.addEventListener("click", exportLogs);
 resetSessionBtn.addEventListener("click", resetWhatsAppSession);
+
+// Edit contact
+function editContact(index) {
+  const contact = contacts[index];
+  
+  // Create a modal dialog for editing the contact
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.id = 'editContactModal';
+  modal.setAttribute('tabindex', '-1');
+  modal.setAttribute('aria-labelledby', 'editContactModalLabel');
+  modal.setAttribute('aria-hidden', 'true');
+  
+  modal.innerHTML = `
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="editContactModalLabel">Edit Contact</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="editContactNumber" class="form-label">Phone Number</label>
+            <input type="text" class="form-control" id="editContactNumber" value="${contact.Number}">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="saveContactBtn">Save Changes</button>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  
+  // Initialize the Bootstrap modal
+  const modalInstance = new bootstrap.Modal(modal);
+  modalInstance.show();
+  
+  // Save changes when button is clicked
+  document.getElementById('saveContactBtn').addEventListener('click', () => {
+    const newNumber = document.getElementById('editContactNumber').value;
+    contacts[index].Number = newNumber;
+    modalInstance.hide();
+    
+    // Remove the modal from DOM after hiding
+    modal.addEventListener('hidden.bs.modal', function () {
+      document.body.removeChild(modal);
+    });
+    
+    // Update the contacts table
+    updateContactsTable();
+    addLog(`Contact #${index + 1} updated to ${newNumber}`, "info");
+  });
+  
+  // Clean up the modal when closed
+  modal.addEventListener('hidden.bs.modal', function () {
+    if (document.body.contains(modal)) {
+      document.body.removeChild(modal);
+    }
+  });
+}
+
+// Delete contact
+function deleteContact(index) {
+  // Create a confirmation modal
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.id = 'deleteContactModal';
+  modal.setAttribute('tabindex', '-1');
+  modal.setAttribute('aria-labelledby', 'deleteContactModalLabel');
+  modal.setAttribute('aria-hidden', 'true');
+  
+  modal.innerHTML = `
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="deleteContactModalLabel">Confirm Delete</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p>Are you sure you want to delete contact with number ${contacts[index].Number}?</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Delete</button>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  
+  // Initialize the Bootstrap modal
+  const modalInstance = new bootstrap.Modal(modal);
+  modalInstance.show();
+  
+  // Delete contact when confirm button is clicked
+  document.getElementById('confirmDeleteBtn').addEventListener('click', () => {
+    contacts.splice(index, 1);
+    modalInstance.hide();
+    
+    // Remove the modal from DOM after hiding
+    modal.addEventListener('hidden.bs.modal', function () {
+      document.body.removeChild(modal);
+    });
+    
+    // Update the contacts table and count
+    updateContactsTable();
+    addLog(`Contact #${index + 1} deleted`, "info");
+  });
+  
+  // Clean up the modal when closed
+  modal.addEventListener('hidden.bs.modal', function () {
+    if (document.body.contains(modal)) {
+      document.body.removeChild(modal);
+    }
+  });
+}  // View all contacts
+function viewAllContacts() {
+  // Create a modal for viewing all contacts
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.id = 'allContactsModal';
+  modal.setAttribute('tabindex', '-1');
+  modal.setAttribute('aria-labelledby', 'allContactsModalLabel');
+  modal.setAttribute('aria-hidden', 'true');
+  
+  // Generate table rows for all contacts
+  let tableRows = '';
+  contacts.forEach((contact, index) => {
+    // Get the current status of the contact if it's in the visible list
+    let statusBadge = '<span class="badge bg-secondary">Pending</span>';
+    if (index < 20) {
+      const rowInMainTable = contactsTableBody.rows[index];
+      if (rowInMainTable && rowInMainTable.cells[2]) {
+        statusBadge = rowInMainTable.cells[2].innerHTML;
+      }
+    }
+    
+    tableRows += `
+      <tr>
+        <td>${index + 1}</td>
+        <td>${contact.Number}</td>
+        <td>${statusBadge}</td>
+        <td>
+          <i class="fas fa-edit action-icon edit-icon" data-modal-index="${index}" title="Edit Contact"></i>
+          <i class="fas fa-trash-alt action-icon delete-icon" data-modal-index="${index}" title="Delete Contact"></i>
+        </td>
+      </tr>
+    `;
+  });
+  
+  modal.innerHTML = `
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="allContactsModalLabel">All Contacts</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="table-responsive" style="max-height: 60vh;">
+            <table class="table table-striped table-sm">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Number</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRows}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  
+  // Initialize the Bootstrap modal
+  const modalInstance = new bootstrap.Modal(modal);
+  modalInstance.show();
+  
+  // Add event listeners to edit and delete icons
+  const editIcons = modal.querySelectorAll('.edit-icon');
+  const deleteIcons = modal.querySelectorAll('.delete-icon');
+  
+  editIcons.forEach(icon => {
+    icon.addEventListener('click', () => {
+      const index = parseInt(icon.getAttribute('data-modal-index'));
+      modalInstance.hide();
+      setTimeout(() => editContact(index), 500); // Delay to avoid modal conflicts
+    });
+  });
+  
+  deleteIcons.forEach(icon => {
+    icon.addEventListener('click', () => {
+      const index = parseInt(icon.getAttribute('data-modal-index'));
+      modalInstance.hide();
+      setTimeout(() => deleteContact(index), 500); // Delay to avoid modal conflicts
+    });
+  });
+  
+  // Clean up the modal when closed
+  modal.addEventListener('hidden.bs.modal', function () {
+    if (document.body.contains(modal)) {
+      document.body.removeChild(modal);
+    }
+  });
+}

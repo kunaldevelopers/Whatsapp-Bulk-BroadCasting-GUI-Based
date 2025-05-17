@@ -1,4 +1,11 @@
-const { app, BrowserWindow, ipcMain, dialog } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  ipcMain,
+  dialog,
+  Menu,
+  MenuItem,
+} = require("electron");
 const path = require("path");
 const fs = require("fs");
 const Store = require("electron-store").default;
@@ -39,6 +46,49 @@ function createWindow() {
   }); // Load the HTML file
   mainWindow.loadFile(path.join(__dirname, "src", "index.html"));
 
+  // Set up zoom level functionality
+  let currentZoomLevel = 0;
+
+  // Create menu with zoom shortcuts
+  const menu = Menu.getApplicationMenu();
+
+  // Add zoom in shortcut (Ctrl++)
+  const zoomIn = () => {
+    currentZoomLevel += 0.2;
+    mainWindow.webContents.setZoomLevel(currentZoomLevel);
+    logger.info(`Zoom level increased to: ${currentZoomLevel}`);
+  };
+
+  // Add zoom out shortcut (Ctrl+-)
+  const zoomOut = () => {
+    currentZoomLevel -= 0.2;
+    mainWindow.webContents.setZoomLevel(currentZoomLevel);
+    logger.info(`Zoom level decreased to: ${currentZoomLevel}`);
+  };
+
+  // Add reset zoom shortcut (Ctrl+0)
+  const zoomReset = () => {
+    currentZoomLevel = 0;
+    mainWindow.webContents.setZoomLevel(0);
+    logger.info("Zoom level reset to default");
+  };
+
+  // Register keyboard shortcuts
+  mainWindow.webContents.on("before-input-event", (event, input) => {
+    if (input.control) {
+      if (input.key === "=" || input.key === "+") {
+        zoomIn();
+        event.preventDefault();
+      } else if (input.key === "-") {
+        zoomOut();
+        event.preventDefault();
+      } else if (input.key === "0") {
+        zoomReset();
+        event.preventDefault();
+      }
+    }
+  });
+
   // Open DevTools in development mode (optional)
   // mainWindow.webContents.openDevTools();
 
@@ -48,9 +98,79 @@ function createWindow() {
   });
 }
 
+// Create application menu with zoom controls
+function createApplicationMenu() {
+  const template = [
+    {
+      label: "File",
+      submenu: [{ role: "quit" }],
+    },
+    {
+      label: "Edit",
+      submenu: [
+        { role: "undo" },
+        { role: "redo" },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
+        { role: "paste" },
+      ],
+    },
+    {
+      label: "View",
+      submenu: [
+        {
+          label: "Zoom In",
+          accelerator: "CommandOrControl+=",
+          click: () => {
+            if (mainWindow) {
+              mainWindow.webContents.send("zoom-in");
+            }
+          },
+        },
+        {
+          label: "Zoom Out",
+          accelerator: "CommandOrControl+-",
+          click: () => {
+            if (mainWindow) {
+              mainWindow.webContents.send("zoom-out");
+            }
+          },
+        },
+        {
+          label: "Reset Zoom",
+          accelerator: "CommandOrControl+0",
+          click: () => {
+            if (mainWindow) {
+              mainWindow.webContents.send("zoom-reset");
+            }
+          },
+        },
+      ],
+    },
+    {
+      label: "Help",
+      submenu: [
+        {
+          label: "About",
+          click: () => {
+            if (mainWindow) {
+              mainWindow.webContents.send("show-about");
+            }
+          },
+        },
+      ],
+    },
+  ];
+
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
+}
+
 // This method will be called when Electron has finished initialization
 app.whenReady().then(() => {
   createWindow();
+  createApplicationMenu();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {

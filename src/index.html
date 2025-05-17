@@ -3,10 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>WhatsApp Bot - EnegiX Global</title>
-    <link
+    <title>WhatsApp Bot - EnegiX Global</title>    <link
       rel="stylesheet"
       href="../node_modules/bootstrap/dist/css/bootstrap.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"
     />
     <style>
       @keyframes spin {
@@ -96,12 +99,21 @@
       #messagePreview {
         white-space: pre-wrap;
         border: 1px solid #dee2e6;
-        border-radius: 5px;
+        border-radius: 12px;
         padding: 15px;
         max-height: 300px;
         overflow-y: auto;
         background-color: #dcf8c6;
         margin-bottom: 15px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+      }
+      #messagePreview strong {
+        font-weight: bold;
+      }
+      #messagePreview em {
+        font-style: italic;
       }
       .log-container {
         background-color: #343a40;
@@ -126,6 +138,39 @@
       }
       .log-info {
         color: #17a2b8;
+      }
+      .action-icon {
+        cursor: pointer;
+        margin: 0 5px;
+        color: #6c757d;
+        transition: color 0.2s;
+      }
+      .action-icon:hover {
+        color: #212529;
+      }
+      .edit-icon:hover {
+        color: #0d6efd;
+      }
+      .delete-icon:hover {
+        color: #dc3545;
+      }
+      .view-more-btn {
+        margin-top: 10px;
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        padding: 8px 12px;
+        font-size: 14px;
+        cursor: pointer;
+        width: 100%;
+        text-align: center;
+        transition: background-color 0.2s;
+      }
+      .view-more-btn:hover {
+        background-color: #e9ecef;
+      }
+      .view-more-btn i {
+        margin-left: 5px;
       }
     </style>
   </head>
@@ -449,11 +494,11 @@
                               <th>#</th>
                               <th>Number</th>
                               <th>Status</th>
+                              <th>Actions</th>
                             </tr>
-                          </thead>
-                          <tbody id="contactsTableBody">
+                          </thead>                          <tbody id="contactsTableBody">
                             <tr>
-                              <td colspan="3" class="text-center">
+                              <td colspan="4" class="text-center">
                                 No contacts loaded
                               </td>
                             </tr>
@@ -611,10 +656,16 @@
                         A desktop application for sending WhatsApp messages to
                         multiple contacts.
                       </p>
-                      <p>Developed for EnegiX Global.</p>
+                      <p>Developed by Kunal for EnegiX Global.</p>
                       <p>Version: <span id="appVersion">1.0.0</span></p>
                       <p class="text-muted">
                         © 2025 EnegiX Global. All rights reserved.
+                      </p>
+                      <p class="text-muted">
+                        <small
+                          >Zoom controls: Ctrl++ (zoom in), Ctrl+- (zoom out),
+                          Ctrl+0 (reset zoom)</small
+                        >
                       </p>
                       <hr />
                       <div class="d-flex gap-2">
