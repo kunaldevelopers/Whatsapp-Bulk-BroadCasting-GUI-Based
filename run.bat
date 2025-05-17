@@ -1,0 +1,3 @@
+@echo off
+echo Starting WhatsApp Bulk Messenger...
+npm start

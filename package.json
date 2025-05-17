@@ -1,0 +1,60 @@
+{
+  "name": "whatsapp-bulk-messenger",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder",
+    "dist": "electron-builder --win"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bootstrap": "^5.3.6",
+    "bootstrap-icons": "^1.13.1",
+    "chart.js": "^4.4.9",
+    "electron-store": "^10.0.1",
+    "fs": "^0.0.1-security",
+    "qrcode": "^1.5.4",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.27.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "electron": "^36.2.1",
+    "electron-builder": "^26.0.12"
+  },
+  "description": "WhatsApp Bulk Messenger Desktop Application for Marketing",
+  "build": {
+    "appId": "com.whatsapp.bulkmessenger",
+    "productName": "WhatsApp Bulk Messenger",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/whatsapp-logo.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    },
+    "files": [
+      "**/*",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!**/node_modules/*.d.ts",
+      "!**/node_modules/.bin",
+      "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
+      "!.editorconfig",
+      "!**/._*",
+      "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
+      "!**/{__pycache__,thumbs.db,.flowconfig,.idea,appveyor.yml,.travis.yml,.github,.gitlab-ci.yml}"
+    ]
+  }
+}

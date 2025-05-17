@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WhatsApp Bot - EnegiX Global</title>
+    <link
+      rel="stylesheet"
+      href="../node_modules/bootstrap/dist/css/bootstrap.min.css"
+    />
+    <style>
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      .spin {
+        animation: spin 2s linear infinite;
+        display: inline-block;
+      }
+
+      body {
+        padding-top: 20px;
+        background-color: #f8f9fa;
+      }
+      .main-container {
+        background-color: white;
+        border-radius: 10px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+        margin-bottom: 20px;
+      }
+      .nav-pills .nav-link.active {
+        background-color: #25d366;
+      }
+      .btn-whatsapp {
+        background-color: #25d366;
+        border-color: #25d366;
+        color: white;
+      }
+      .btn-whatsapp:hover {
+        background-color: #128c7e;
+        border-color: #128c7e;
+        color: white;
+      }
+      #qrcode {
+        text-align: center;
+        margin: 20px 0;
+      }
+      #qrcode img {
+        margin: 0 auto;
+        border: 10px solid white;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      }
+      .status-indicator {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 5px;
+      }
+      .status-disconnected {
+        background-color: #dc3545;
+      }
+      .status-connected {
+        background-color: #28a745;
+      }
+      .status-connecting {
+        background-color: #ffc107;
+      }
+      .progress {
+        height: 25px;
+      }
+      .message-template {
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        margin-bottom: 10px;
+        padding: 10px;
+        cursor: pointer;
+      }
+      .message-template:hover {
+        background-color: #f8f9fa;
+      }
+      .template-title {
+        font-weight: bold;
+      }
+      .template-content {
+        white-space: pre-wrap;
+        max-height: 80px;
+        overflow: hidden;
+      }
+      #messagePreview {
+        white-space: pre-wrap;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        padding: 15px;
+        max-height: 300px;
+        overflow-y: auto;
+        background-color: #dcf8c6;
+        margin-bottom: 15px;
+      }
+      .log-container {
+        background-color: #343a40;
+        color: #f8f9fa;
+        border-radius: 5px;
+        padding: 10px;
+        height: 300px;
+        overflow-y: auto;
+        font-family: monospace;
+      }
+      .log-entry {
+        margin: 5px 0;
+      }
+      .log-success {
+        color: #28a745;
+      }
+      .log-error {
+        color: #dc3545;
+      }
+      .log-warning {
+        color: #ffc107;
+      }
+      .log-info {
+        color: #17a2b8;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="row">
+        <div class="col-12 main-container">
+          <h1 class="mb-4">
+            <img
+              src="../assets/whatsapp-logo.png"
+              alt="WhatsApp Logo"
+              height="40"
+            />
+            WhatsApp Bulk Messenger - EnegiX Global
+          </h1>
+
+          <ul class="nav nav-pills mb-4" id="mainTab" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link active"
+                id="connection-tab"
+                data-bs-toggle="pill"
+                data-bs-target="#connection"
+                type="button"
+                role="tab"
+              >
+                Connection
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link"
+                id="message-tab"
+                data-bs-toggle="pill"
+                data-bs-target="#message"
+                type="button"
+                role="tab"
+              >
+                Message
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link"
+                id="contacts-tab"
+                data-bs-toggle="pill"
+                data-bs-target="#contacts"
+                type="button"
+                role="tab"
+              >
+                Contacts
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link"
+                id="settings-tab"
+                data-bs-toggle="pill"
+                data-bs-target="#settings"
+                type="button"
+                role="tab"
+              >
+                Settings
+              </button>
+            </li>
+          </ul>
+
+          <div class="tab-content" id="mainTabContent">
+            <!-- Connection Tab -->
+            <div
+              class="tab-pane fade show active"
+              id="connection"
+              role="tabpanel"
+            >
+              <div class="row">
+                <div class="col-md-6">
+                  <div class="card mb-4">
+                    <div class="card-header">
+                      <h5>WhatsApp Connection Status</h5>
+                    </div>
+                    <div class="card-body">
+                      <p class="mb-3">
+                        Status:
+                        <span id="connectionStatus"
+                          ><span
+                            class="status-indicator status-disconnected"
+                          ></span>
+                          Disconnected</span
+                        >
+                      </p>
+                      <button id="connectBtn" class="btn btn-whatsapp me-2">
+                        Connect to WhatsApp
+                      </button>
+                      <button
+                        id="disconnectBtn"
+                        class="btn btn-danger"
+                        disabled
+                      >
+                        Disconnect
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="card mb-4">
+                    <div class="card-header">
+                      <h5>WhatsApp Connection</h5>
+                    </div>
+                    <div class="card-body">
+                      <div id="qrcode">
+                        <p class="text-muted">
+                          Click Connect to use saved session or scan QR code
+                        </p>
+                      </div>
+                      <p class="text-center text-muted small">
+                        Please scan this QR code with your WhatsApp mobile app
+                        to connect (only needed once)
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Message Tab -->
+            <div class="tab-pane fade" id="message" role="tabpanel">
+              <div class="row">
+                <div class="col-md-6">
+                  <div class="card mb-4">
+                    <div class="card-header">
+                      <h5>Message Template</h5>
+                    </div>
+                    <div class="card-body">
+                      <div class="mb-3">
+                        <label for="templateName" class="form-label"
+                          >Template Name (Optional)</label
+                        >
+                        <input
+                          type="text"
+                          class="form-control"
+                          id="templateName"
+                          placeholder="E.g., Coaching Institute Template"
+                        />
+                      </div>
+                      <div class="mb-3">
+                        <label for="messageText" class="form-label"
+                          >Message Text</label
+                        >
+                        <textarea
+                          class="form-control"
+                          id="messageText"
+                          rows="10"
+                          placeholder="Type your message here..."
+                        ></textarea>
+                        <div class="form-text">
+                          Use *text* for bold and _text_ for italics
+                        </div>
+                      </div>
+                      <div class="d-flex justify-content-between">
+                        <button id="saveTemplateBtn" class="btn btn-secondary">
+                          Save Template
+                        </button>
+                        <button id="previewBtn" class="btn btn-primary">
+                          Preview Message
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="card mb-4">
+                    <div class="card-header">
+                      <h5>Media Attachments</h5>
+                    </div>
+                    <div class="card-body">
+                      <div class="mb-3">
+                        <label for="imageFile" class="form-label"
+                          >Image File</label
+                        >
+                        <div class="input-group">
+                          <input
+                            type="text"
+                            class="form-control"
+                            id="imageFilePath"
+                            readonly
+                          />
+                          <button
+                            class="btn btn-outline-secondary"
+                            type="button"
+                            id="selectImageBtn"
+                          >
+                            Browse
+                          </button>
+                        </div>
+                        <div class="form-text">
+                          Select an image to send with your message
+                        </div>
+                      </div>
+                      <div class="mb-3">
+                        <label for="pdfFile" class="form-label">PDF File</label>
+                        <div class="input-group">
+                          <input
+                            type="text"
+                            class="form-control"
+                            id="pdfFilePath"
+                            readonly
+                          />
+                          <button
+                            class="btn btn-outline-secondary"
+                            type="button"
+                            id="selectPdfBtn"
+                          >
+                            Browse
+                          </button>
+                        </div>
+                        <div class="form-text">
+                          Select a PDF document to send after the image
+                        </div>
+                      </div>
+                      <div class="mb-3">
+                        <label for="pdfCaption" class="form-label"
+                          >PDF Caption</label
+                        >
+                        <input
+                          type="text"
+                          class="form-control"
+                          id="pdfCaption"
+                          value="📄 Our Services Brochure"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="col-md-6">
+                  <div class="card mb-4">
+                    <div class="card-header">
+                      <h5>Message Preview</h5>
+                    </div>
+                    <div class="card-body">
+                      <div id="messagePreview">
+                        Your message preview will appear here...
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="card mb-4">
+                    <div
+                      class="card-header d-flex justify-content-between align-items-center"
+                    >
+                      <h5 class="mb-0">Saved Templates</h5>
+                      <button
+                        id="refreshTemplatesBtn"
+                        class="btn btn-sm btn-outline-secondary"
+                      >
+                        Refresh
+                      </button>
+                    </div>
+                    <div class="card-body">
+                      <div id="templatesContainer" class="templates-container">
+                        <p
+                          class="text-muted text-center"
+                          id="noTemplatesMessage"
+                        >
+                          No saved templates yet
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Contacts Tab -->
+            <div class="tab-pane fade" id="contacts" role="tabpanel">
+              <div class="row">
+                <div class="col-md-6">
+                  <div class="card mb-4">
+                    <div class="card-header">
+                      <h5>Contact List</h5>
+                    </div>
+                    <div class="card-body">
+                      <div class="mb-3">
+                        <label for="contactsFile" class="form-label"
+                          >Excel File with Contacts</label
+                        >
+                        <div class="input-group">
+                          <input
+                            type="text"
+                            class="form-control"
+                            id="contactsFilePath"
+                            readonly
+                          />
+                          <button
+                            class="btn btn-outline-secondary"
+                            type="button"
+                            id="selectContactsBtn"
+                          >
+                            Browse
+                          </button>
+                        </div>
+                        <div class="form-text">
+                          Select an Excel file (.xlsx) containing phone numbers
+                          in a column named "Number"
+                        </div>
+                      </div>
+                      <button id="loadContactsBtn" class="btn btn-primary">
+                        Load Contacts
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="card mb-4">
+                    <div class="card-header">
+                      <h5>Contact List Preview</h5>
+                    </div>
+                    <div class="card-body">
+                      <div class="table-responsive">
+                        <table class="table table-striped table-sm">
+                          <thead>
+                            <tr>
+                              <th>#</th>
+                              <th>Number</th>
+                              <th>Status</th>
+                            </tr>
+                          </thead>
+                          <tbody id="contactsTableBody">
+                            <tr>
+                              <td colspan="3" class="text-center">
+                                No contacts loaded
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="col-md-6">
+                  <div class="card mb-4">
+                    <div class="card-header">
+                      <h5>Send Messages</h5>
+                    </div>
+                    <div class="card-body">
+                      <p>
+                        Ready to send messages to
+                        <span id="contactCount">0</span> contacts.
+                      </p>
+                      <div class="mb-3">
+                        <div class="progress mb-2">
+                          <div
+                            id="sendProgress"
+                            class="progress-bar progress-bar-striped progress-bar-animated"
+                            role="progressbar"
+                            style="width: 0%"
+                          >
+                            0%
+                          </div>
+                        </div>
+                        <p id="sendStatus" class="text-muted">Not started</p>
+                      </div>
+                      <div class="d-flex justify-content-between">
+                        <button
+                          id="startSendingBtn"
+                          class="btn btn-success"
+                          disabled
+                        >
+                          Start Sending
+                        </button>
+                        <button
+                          id="pauseResumeBtn"
+                          class="btn btn-warning"
+                          disabled
+                        >
+                          Pause
+                        </button>
+                        <button
+                          id="stopSendingBtn"
+                          class="btn btn-danger"
+                          disabled
+                        >
+                          Stop
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="card mb-4">
+                    <div class="card-header">
+                      <h5>Log</h5>
+                    </div>
+                    <div class="card-body p-0">
+                      <div id="logContainer" class="log-container">
+                        <div class="log-entry log-info">
+                          System initialized. Ready to connect to WhatsApp.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Settings Tab -->
+            <div class="tab-pane fade" id="settings" role="tabpanel">
+              <div class="row">
+                <div class="col-md-6">
+                  <div class="card mb-4">
+                    <div class="card-header">
+                      <h5>Delay Settings</h5>
+                    </div>
+                    <div class="card-body">
+                      <div class="mb-3">
+                        <label class="form-label"
+                          >Delay between image and PDF (seconds)</label
+                        >
+                        <div class="input-group">
+                          <input
+                            type="number"
+                            class="form-control"
+                            id="minDelay"
+                            min="1"
+                            max="60"
+                            value="2"
+                          />
+                          <span class="input-group-text">to</span>
+                          <input
+                            type="number"
+                            class="form-control"
+                            id="maxDelay"
+                            min="1"
+                            max="60"
+                            value="5"
+                          />
+                          <span class="input-group-text">seconds</span>
+                        </div>
+                        <div class="form-text">
+                          Random delay between sending image and PDF
+                        </div>
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label"
+                          >Delay between contacts (seconds)</label
+                        >
+                        <div class="input-group">
+                          <input
+                            type="number"
+                            class="form-control"
+                            id="minDelayPdf"
+                            min="1"
+                            max="120"
+                            value="5"
+                          />
+                          <span class="input-group-text">to</span>
+                          <input
+                            type="number"
+                            class="form-control"
+                            id="maxDelayPdf"
+                            min="1"
+                            max="120"
+                            value="10"
+                          />
+                          <span class="input-group-text">seconds</span>
+                        </div>
+                        <div class="form-text">
+                          Random delay between different contacts
+                        </div>
+                      </div>
+                      <button id="saveSettingsBtn" class="btn btn-primary">
+                        Save Settings
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="card mb-4">
+                    <div class="card-header">
+                      <h5>About</h5>
+                    </div>
+                    <div class="card-body">
+                      <h5>WhatsApp Bulk Messenger</h5>
+                      <p>
+                        A desktop application for sending WhatsApp messages to
+                        multiple contacts.
+                      </p>
+                      <p>Developed for EnegiX Global.</p>
+                      <p>Version: <span id="appVersion">1.0.0</span></p>
+                      <p class="text-muted">
+                        © 2025 EnegiX Global. All rights reserved.
+                      </p>
+                      <hr />
+                      <div class="d-flex gap-2">
+                        <button
+                          id="exportLogsBtn"
+                          class="btn btn-outline-secondary"
+                        >
+                          Export Logs
+                        </button>
+                        <button
+                          id="resetSessionBtn"
+                          class="btn btn-outline-danger"
+                          data-bs-toggle="tooltip"
+                          title="This will log you out and require scanning the QR code again"
+                        >
+                          Reset WhatsApp Session
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="../node_modules/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="qr-manager.js"></script>
+    <script src="renderer.js"></script>
+    <script src="connection-fix.js"></script>
+    <script src="connection-debug.js"></script>
+    <script src="process-cleaner.js"></script>
+  </body>
+</html>
