@@ -4,6 +4,142 @@ const xlsx = require("xlsx");
 const { Client, MessageMedia, LocalAuth } = require("whatsapp-web.js");
 const fs = require("fs");
 const logger = require("./logger");
+const path = require("path");
+
+// Session Management
+let currentSessionId = "1";
+let sessions = new Map();
+
+// Function to get session directory path
+function getSessionPath(sessionId) {
+  return path.join(__dirname, "..", ".wwebjs_auth", `session-${sessionId}`);
+}
+
+// Function to list available sessions
+function listAvailableSessions() {
+  const sessionsDir = path.join(__dirname, "..", ".wwebjs_auth");
+  if (!fs.existsSync(sessionsDir)) {
+    fs.mkdirSync(sessionsDir, { recursive: true });
+    return [];
+  }
+
+  return fs
+    .readdirSync(sessionsDir)
+    .filter((name) => name.startsWith("session-"))
+    .map((name) => name.replace("session-", ""))
+    .sort((a, b) => parseInt(a) - parseInt(b));
+}
+
+// Function to update session dropdown
+function updateSessionDropdown() {
+  const sessionList = document.getElementById("sessionList");
+  const availableSessions = listAvailableSessions();
+
+  // Clear existing items except the last "Create New Session" item
+  while (sessionList.children.length > 2) {
+    sessionList.removeChild(sessionList.firstChild);
+  }
+
+  // Add session items
+  availableSessions.reverse().forEach((sessionId) => {
+    const li = document.createElement("li");
+    const a = document.createElement("a");
+    a.className =
+      "dropdown-item" + (sessionId === currentSessionId ? " active" : "");
+    a.href = "#";
+    a.textContent = `Session ${sessionId}`;
+    a.dataset.session = sessionId;
+    li.appendChild(a);
+    sessionList.insertBefore(li, sessionList.firstChild);
+  });
+
+  // Update dropdown button text
+  document.getElementById(
+    "sessionDropdown"
+  ).textContent = `Session ${currentSessionId}`;
+}
+
+// Function to create new session
+async function createNewSession() {
+  const availableSessions = listAvailableSessions();
+  const nextId =
+    availableSessions.length > 0
+      ? Math.max(...availableSessions.map((id) => parseInt(id))) + 1
+      : 1;
+
+  currentSessionId = nextId.toString();
+  updateSessionDropdown();
+
+  // Disconnect current client if connected
+  if (client && isClientInitialized) {
+    await disconnectWhatsApp();
+  }
+
+  // Reset client state
+  client = null;
+  isClientInitialized = false;
+  isClientReady = false;
+
+  // Update UI
+  updateConnectionStatus("disconnected");
+  qrcodeContainer.innerHTML =
+    '<p class="text-muted">Click Connect to scan QR code for new session</p>';
+  addLog(`Created new session: Session ${currentSessionId}`, "info");
+}
+
+// Function to switch session
+async function switchSession(sessionId) {
+  if (sessionId === currentSessionId) return;
+
+  // Disconnect current client if connected
+  if (client && isClientInitialized) {
+    await disconnectWhatsApp();
+  }
+
+  currentSessionId = sessionId;
+  updateSessionDropdown();
+
+  // Reset client state
+  client = null;
+  isClientInitialized = false;
+  isClientReady = false;
+
+  // Update UI
+  updateConnectionStatus("disconnected");
+  const sessionPath = getSessionPath(sessionId);
+  const hasSession = fs.existsSync(sessionPath);
+
+  qrcodeContainer.innerHTML = hasSession
+    ? '<p class="text-muted">Click Connect to use saved session</p>'
+    : '<p class="text-muted">Click Connect to scan QR code</p>';
+
+  addLog(`Switched to Session ${sessionId}`, "info");
+}
+
+// Add event listeners for session management
+document.addEventListener("DOMContentLoaded", () => {
+  // Initialize session list
+  updateSessionDropdown();
+
+  // Handle session switching
+  document
+    .getElementById("sessionList")
+    .addEventListener("click", async (e) => {
+      if (
+        e.target.classList.contains("dropdown-item") &&
+        e.target.dataset.session
+      ) {
+        await switchSession(e.target.dataset.session);
+      }
+    });
+
+  // Handle new session creation
+  document
+    .getElementById("newSessionBtn")
+    .addEventListener("click", async () => {
+      await createNewSession();
+    });
+});
 
 // Global zoom functionality
 let currentZoom = 1.0;
@@ -185,9 +321,12 @@ async function connectWhatsApp() {
     window.qrManager.showGenerating();
   }
 
-  // Initialize WhatsApp client with LocalAuth for session persistence
+  // Initialize WhatsApp client with session support
   client = new Client({
-    authStrategy: new LocalAuth({ clientId: "whatsapp-messenger" }),
+    authStrategy: new LocalAuth({
+      clientId: `whatsapp-messenger-${currentSessionId}`,
+      dataPath: getSessionPath(currentSessionId),
+    }),
     puppeteer: {
       headless: true,
       args: [
@@ -205,7 +344,7 @@ async function connectWhatsApp() {
         height: 720,
       },
     },
-    qrMaxRetries: 5, // Increase from 3 to 5
+    qrMaxRetries: 5,
     takeoverOnConflict: true,
   });
 
@@ -1031,40 +1170,57 @@ async function exportLogs() {
 async function resetWhatsAppSession() {
   if (isClientInitialized) {
     addLog(
-      "Cannot reset session while WhatsApp is connected. Please disconnect first.",
+      "Please disconnect from WhatsApp before resetting the session.",
       "warning"
     );
     return;
   }
 
   const confirmReset = confirm(
-    "This will delete your saved WhatsApp session and you'll need to scan the QR code again next time.\n\nAre you sure you want to continue?"
+    `This will delete your saved WhatsApp session (Session ${currentSessionId}) and you'll need to scan the QR code again.\n\nAre you sure you want to continue?`
   );
 
   if (confirmReset) {
     try {
       addLog("Resetting WhatsApp session...", "info");
-      const result = await ipcRenderer.invoke("reset-whatsapp-session");
 
-      if (result.success) {
-        addLog("WhatsApp session has been reset successfully.", "success");
+      // Get the session directory path
+      const sessionPath = getSessionPath(currentSessionId);
 
-        // Reset QR manager if available
-        if (window.qrManager) {
-          window.qrManager.resetQR();
-          qrcodeContainer.innerHTML =
-            '<p class="text-muted">Click Connect to scan QR code on next connection</p>';
-        } else {
-          qrcodeContainer.innerHTML =
-            '<p class="text-muted">Click Connect to scan QR code on next connection</p>';
+      // Ensure client is destroyed and null
+      if (client) {
+        try {
+          await client.destroy();
+        } catch (err) {
+          console.error("Error destroying client:", err);
         }
-
-        // Clear connection failures counter
-        localStorage.setItem("whatsapp_connection_failures", "0");
-      } else {
-        addLog(`Failed to reset WhatsApp session: ${result.message}`, "error");
+        client = null;
       }
+
+      // Delete the session directory if it exists
+      if (fs.existsSync(sessionPath)) {
+        fs.rmSync(sessionPath, { recursive: true, force: true });
+        addLog(`Session directory deleted: ${sessionPath}`, "info");
+      }
+
+      // Reset all state
+      isClientInitialized = false;
+      isClientReady = false;
+      localStorage.setItem("whatsapp_connection_failures", "0");
+
+      // Update UI
+      updateConnectionStatus("disconnected");
+      if (window.qrManager) {
+        window.qrManager.resetQR();
+      }
+      qrcodeContainer.innerHTML =
+        '<p class="text-muted">Click Connect to scan new QR code</p>';
+      connectBtn.disabled = false;
+      disconnectBtn.disabled = true;
+
+      addLog("WhatsApp session has been reset successfully.", "success");
     } catch (error) {
+      console.error("Reset session error:", error);
       addLog(`Error resetting WhatsApp session: ${error.message}`, "error");
     }
   }
