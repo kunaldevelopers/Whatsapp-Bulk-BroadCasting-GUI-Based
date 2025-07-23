@@ -5,9 +5,12 @@
  * verification of WhatsApp connection process.
  */
 
-const { ipcRenderer } = require("electron");
-const { Client, LocalAuth } = require("whatsapp-web.js");
-const QRCode = require("qrcode");
+// Use the already declared ipcRenderer from renderer.js
+// const { ipcRenderer } = require("electron"); - moved to global scope in renderer.js
+// Use the globally available WhatsApp Web.js classes from renderer.js
+// const { Client, LocalAuth } = require("whatsapp-web.js"); - moved to global scope in renderer.js
+// Use the globally available QRCode from renderer.js
+// const QRCode = require("qrcode"); - moved to global scope in renderer.js
 
 // Wait for DOM to be fully loaded
 document.addEventListener("DOMContentLoaded", function () {
@@ -90,7 +93,7 @@ async function runConnectionDiagnostics() {
     updateProgress(10, "Checking for WhatsApp session data...");
     let hasSession;
     try {
-      hasSession = await ipcRenderer.invoke("check-whatsapp-session");
+      hasSession = await window.ipcRenderer.invoke("check-whatsapp-session");
     } catch (error) {
       showError("Failed to check WhatsApp session", error.message);
       return;
@@ -98,13 +101,13 @@ async function runConnectionDiagnostics() {
 
     // Step 2: Test session directory access
     updateProgress(20, "Testing session directory access...");
-    const sessionDir = await ipcRenderer.invoke("get-session-dir");
+    const sessionDir = await window.ipcRenderer.invoke("get-session-dir");
 
     updateProgress(30, "Creating test connection...");
 
     // Step 3: Create a test client to validate connection
-    const testClient = new Client({
-      authStrategy: new LocalAuth({
+    const testClient = new window.WhatsAppWebJS.Client({
+      authStrategy: new window.WhatsAppWebJS.LocalAuth({
         clientId: "whatsapp-messenger-test",
         dataPath: sessionDir.replace("session-whatsapp-messenger", ""), // Use parent dir
       }),
@@ -129,7 +132,7 @@ async function runConnectionDiagnostics() {
       updateProgress(70, "QR code system working properly!");
 
       // Generate QR code
-      QRCode.toDataURL(qr, { width: 300 }, (err, url) => {
+      window.QRCode.toDataURL(qr, { width: 300 }, (err, url) => {
         if (err) {
           showError("Error generating QR code", err.message);
           return;

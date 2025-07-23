@@ -48,8 +48,8 @@ async function cleanChromiumProcesses() {
   window.addLog("Checking for orphaned browser processes...", "info");
 
   try {
-    const { ipcRenderer } = require("electron");
-    const result = await ipcRenderer.invoke("clean-chromium-processes");
+    // Use the globally available ipcRenderer from renderer.js
+    const result = await window.ipcRenderer.invoke("clean-chromium-processes");
 
     if (result.success) {
       window.addLog(`Process cleanup completed: ${result.message}`, "success");
@@ -66,7 +66,7 @@ async function cleanChromiumProcesses() {
         );
 
         if (confirmRestart) {
-          await ipcRenderer.invoke("restart-app");
+          await window.ipcRenderer.invoke("restart-app");
         }
       } else {
         window.addLog("No orphaned browser processes found", "info");

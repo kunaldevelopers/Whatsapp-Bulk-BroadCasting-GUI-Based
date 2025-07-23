@@ -1,7 +1,13 @@
 const { ipcRenderer } = require("electron");
+// Make ipcRenderer globally available for other scripts
+window.ipcRenderer = ipcRenderer;
 const QRCode = require("qrcode");
+// Make QRCode globally available for other scripts
+window.QRCode = QRCode;
 const xlsx = require("xlsx");
 const { Client, MessageMedia, LocalAuth } = require("whatsapp-web.js");
+// Make WhatsApp Web.js classes globally available for other scripts
+window.WhatsAppWebJS = { Client, MessageMedia, LocalAuth };
 const fs = require("fs");
 const logger = require("./logger");
 const path = require("path");
@@ -1229,14 +1235,18 @@ async function resetWhatsAppSession() {
 // Check if WhatsApp session is corrupted
 async function checkSessionHealth() {
   try {
-    const sessionDir = await ipcRenderer.invoke("get-session-dir");
-    const isSessionExists = await ipcRenderer.invoke("check-whatsapp-session");
+    const sessionDir = await window.ipcRenderer.invoke("get-session-dir");
+    const isSessionExists = await window.ipcRenderer.invoke(
+      "check-whatsapp-session"
+    );
 
     // If no session exists, no need to check health
     if (!isSessionExists) return true;
 
     // Check session integrity
-    const integrityCheck = await ipcRenderer.invoke("check-session-integrity");
+    const integrityCheck = await window.ipcRenderer.invoke(
+      "check-session-integrity"
+    );
 
     if (!integrityCheck.valid) {
       addLog(
